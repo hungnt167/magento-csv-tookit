@@ -155,25 +155,40 @@ const mapService = {
             categories = categoryPaths.join(',');
         }
 
-        const name = row[' Description'];
+        let name = row[' Description'];
+
+        if (sku && (!name || !name.length)) {
+            name = sku;
+        }
+
+        if (name && (!sku || !sku.length)) {
+            sku = name.replace(regURL, '-').toLowerCase();
+        }
+
         let description = row[' Descript 2'];
+        let sizeDescription = [];
 
         if (row['Size 1']) {
-            description += `, Size1: ${row['Size 1']}`
+            sizeDescription.push(`Size1: ${row['Size 1']}`);
         }
 
         if (row['Size 2']) {
-            description += `, Size2: ${row['Size 2']}`
+            sizeDescription.push(`Size2: ${row['Size 2']}`);
         }
 
         if (row['Size 3']) {
-            description += `, Size3: ${row['Size 3']}`
+            sizeDescription.push(`Size3: ${row['Size 3']}`);
         }
 
-        let price = row['List'].replace('$','');
-        let qty = row['In Stock'].replace(',','');
+        if (sizeDescription.length) {
+            description += sizeDescription.join(', ')
+        }
+
+        let price = row['List'].replace(/\$|\(|\)|-|,/g, "") * 1;
+        price = Math.abs(price);
+        let qty = row['In Stock'].replace(/,/g,'');
         let brand = row[' Brand'];
-        let url_key  = name.replace(regURL, '-') + `-${index}`;
+        let url_key  = name.replace(regURL, '-') + `-${index}`.toLowerCase();
         let additional_attributes = `has_options=0,quantity_and_stock_status=In Stock,required_options=0`;
 
         if (brand.length) {
