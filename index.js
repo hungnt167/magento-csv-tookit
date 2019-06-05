@@ -21,8 +21,8 @@ const ProductType = {
     BUNDLE: 'bundle',
     GIFT_VOUCHER: 'gift_voucher',
 };
-let regURL = new RegExp(/[^0-9a-z]+/g);
-
+let regURL = new RegExp(/[^0-9a-z]+/ig);
+let skus = [];
 // category
 let rawData = fs.readFileSync('src/category.json');
 const categoryJson = JSON.parse(rawData);
@@ -59,19 +59,59 @@ function findCategoryPath(path) {
     return categoryPaths;
 }
 
-const mapService = {
-    barcodes: (row) => {
-        let SKU = row[' Item Number'];
+/**
+ *
+ * @param row
+ * @param index
+ * @returns {string}
+ */
+function getProductSku(row, index) {
+    let sku = row[' Item Number'];
+    let supplierSku = row[' Supplier Part Number'];
 
+    if ((!sku || sku.length) && supplierSku) {
+        sku = supplierSku;
+    }
+
+    let name = row[' Description'];
+
+    if (name && (!sku || !sku.length)) {
+        sku = name.replace(regURL, '-').toLowerCase();
+    }
+
+    if (skus.includes(sku)) {
+        sku = `${sku}-${index}`;
+    }
+
+    skus.push(sku);
+    return sku;
+}
+
+/**
+ *
+ * @param row
+ * @returns {string}
+ */
+function getProductName(row) {
+    let sku = row[' Item Number'];
+    let name = row[' Description'];
+
+    if (sku && (!name || !name.length)) {
         let supplierSku = row[' Supplier Part Number'];
-        if ((!SKU || SKU.length) && supplierSku) {
-            SKU = supplierSku;
+
+        if ((!sku || sku.length) && supplierSku) {
+            return supplierSku;
         }
 
+        return sku;
+    }
+    return name;
+}
+
+const mapService = {
+    barcodes: (row, index) => {
+        let SKU = getProductSku(row, index);
         let BARCODE = row[' Part Number'];
-        if (!BARCODE ) {
-
-        }
         let QTY = 1;
         let SUPPLIER = '';
         let PURCHASE_TIME = '';
@@ -80,12 +120,7 @@ const mapService = {
         }
     },
     stock_sources: (row, index, source_code) => {
-        let sku = row[' Item Number'];
-        let supplierSku = row[' Supplier Part Number'];
-        if ((!sku || sku.length) && supplierSku) {
-            sku = supplierSku;
-        }
-
+        let sku = getProductSku(row, index);
         let quantity = parseFloat(row['In Stock']);
         let status = quantity > 0 ? 1 : 0;
         return {
@@ -114,13 +149,7 @@ const mapService = {
         // "has_options=1,quantity_and_stock_status=In Stock,required_options=0",100,0,1,0,0,1,1,0,0,1,1,,1,0,1,1,0,1,0,0,1,0,1,
         // "24-WG087,24-WG086","24-WG087,24-WG086","24-WG087,24-WG086",
         // ,"name=Custom Yoga Option,type=drop_down,required=0,price=10.0000,price_type=fixed,sku=,option_title=Gold|name=Custom Yoga Option,type=drop_down,required=0,price=10.0000,price_type=fixed,sku=,option_title=Silver|name=Custom Yoga Option,type=drop_down,required=0,price=10.0000,price_type=fixed,sku=yoga3sku,option_title=Platinum",,,,,,
-        let sku = row[' Item Number'];
-        let supplierSku = row[' Supplier Part Number'];
-
-        if ((!sku || sku.length) && supplierSku) {
-            sku = supplierSku;
-        }
-
+        let sku = getProductSku(row, index);
         let product_type = ProductType.SIMPLE;
 
         let categoryPaths = [];
@@ -155,14 +184,10 @@ const mapService = {
             categories = categoryPaths.join(',');
         }
 
-        let name = row[' Description'];
+        let name = getProductName(row);
 
         if (sku && (!name || !name.length)) {
             name = sku;
-        }
-
-        if (name && (!sku || !sku.length)) {
-            sku = name.replace(regURL, '-').toLowerCase();
         }
 
         let description = row[' Descript 2'];
@@ -188,8 +213,8 @@ const mapService = {
         price = Math.abs(price);
         let qty = row['In Stock'].replace(/,/g,'');
         let brand = row[' Brand'];
-        let url_key  = name.replace(regURL, '-') + `-${index}`.toLowerCase();
-        let additional_attributes = `has_options=0,quantity_and_stock_status=In Stock,required_options=0`;
+        let url_key  = `${name.replace(regURL, '-')}-${index}`.toLowerCase();
+        let additional_attributes = `has_options=0,quantity_and_stock_status=In Stock,required_options=0,webpos_visible=Yes`;
 
         if (brand.length) {
             additional_attributes += `,brand=${brand}`;
@@ -251,6 +276,7 @@ const mapService = {
 
 fs.readdir(inputPath, function (err, items) {
     items.forEach(csvFile => {
+        skus = [];
         (async () => {
             let fullPath = inputPath + path.sep + csvFile;
             const source_code = csvFile.includes('KN') ? 'default' : 'cedarpoint';
