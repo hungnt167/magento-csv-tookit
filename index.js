@@ -22,7 +22,7 @@ const ProductType = {
     GIFT_VOUCHER: 'gift_voucher',
 };
 let regURL = new RegExp(/[^0-9a-z]+/ig);
-let skus = [];
+let skuDict = {};
 // category
 let rawData = fs.readFileSync('src/category.json');
 const categoryJson = JSON.parse(rawData);
@@ -63,9 +63,10 @@ function findCategoryPath(path) {
  *
  * @param row
  * @param index
+ * @param skuDictIndex
  * @returns {string}
  */
-function getProductSku(row, index) {
+function getProductSku(row, index, skuDictIndex) {
     let sku = row[' Item Number'];
     let supplierSku = row[' Supplier Part Number'];
 
@@ -79,11 +80,17 @@ function getProductSku(row, index) {
         sku = name.replace(regURL, '-').toLowerCase();
     }
 
-    if (skus.includes(sku)) {
+    if (!skuDict[skuDictIndex]) {
+        skuDict[skuDictIndex] = [];
+    }
+
+    if (skuDict[skuDictIndex].includes(sku)) {
         sku = `${sku}-${index}`;
     }
 
-    skus.push(sku);
+    sku = sku.replace('?','');
+
+    skuDict[skuDictIndex].push(sku);
     return sku;
 }
 
@@ -109,8 +116,8 @@ function getProductName(row) {
 }
 
 const mapService = {
-    barcodes: (row, index) => {
-        let SKU = getProductSku(row, index);
+    barcodes: (row, index,  source_code, skuDictIndex) => {
+        let SKU = getProductSku(row, index, skuDictIndex);
         let BARCODE = row[' Part Number'];
         let QTY = 1;
         let SUPPLIER = '';
@@ -119,8 +126,8 @@ const mapService = {
             SKU,BARCODE,QTY,SUPPLIER,PURCHASE_TIME
         }
     },
-    stock_sources: (row, index, source_code) => {
-        let sku = getProductSku(row, index);
+    stock_sources: (row, index, source_code, skuDictIndex) => {
+        let sku = getProductSku(row, index, skuDictIndex);
         let quantity = parseFloat(row['In Stock']);
         let status = quantity > 0 ? 1 : 0;
         return {
@@ -130,7 +137,7 @@ const mapService = {
             quantity,
         }
     },
-    catalog_products: (row, index) => {
+    catalog_products: (row, index, source_code, skuDictIndex) => {
 //sku,store_view_code,attribute_set_code,product_type,categories,product_websites,name,description,short_description,
 // weight,product_online,tax_class_name,visibility,price,special_price,special_price_from_date,special_price_to_date,
 // url_key,meta_title,meta_keywords,meta_description,created_at,updated_at,new_from_date,new_to_date,
@@ -149,7 +156,7 @@ const mapService = {
         // "has_options=1,quantity_and_stock_status=In Stock,required_options=0",100,0,1,0,0,1,1,0,0,1,1,,1,0,1,1,0,1,0,0,1,0,1,
         // "24-WG087,24-WG086","24-WG087,24-WG086","24-WG087,24-WG086",
         // ,"name=Custom Yoga Option,type=drop_down,required=0,price=10.0000,price_type=fixed,sku=,option_title=Gold|name=Custom Yoga Option,type=drop_down,required=0,price=10.0000,price_type=fixed,sku=,option_title=Silver|name=Custom Yoga Option,type=drop_down,required=0,price=10.0000,price_type=fixed,sku=yoga3sku,option_title=Platinum",,,,,,
-        let sku = getProductSku(row, index);
+        let sku = getProductSku(row, index, skuDictIndex);
         let product_type = ProductType.SIMPLE;
 
         let categoryPaths = [];
@@ -276,7 +283,6 @@ const mapService = {
 
 fs.readdir(inputPath, function (err, items) {
     items.forEach(csvFile => {
-        skus = [];
         (async () => {
             let fullPath = inputPath + path.sep + csvFile;
             const source_code = csvFile.includes('KN') ? 'default' : 'cedarpoint';
@@ -284,7 +290,7 @@ fs.readdir(inputPath, function (err, items) {
             const jsonArray = await csvToObject().fromFile(fullPath);
 
             let rows = Object.values(jsonArray).map((row, index) => {
-               return mapService[type](row, index, source_code)
+               return mapService[type](row, index, source_code, fullPath)
             });
 
             let csv = new ObjectsToCsv(rows);
