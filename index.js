@@ -89,6 +89,7 @@ function getProductSku(row, index, skuDictIndex) {
     }
 
     sku = sku.replace('?','');
+    sku = sku.replace('\\','');
 
     skuDict[skuDictIndex].push(sku);
     return sku;
