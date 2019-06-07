@@ -5,4 +5,5 @@
 node index.js catalog_products
 node index.js stock_sources
 node index.js barcodes
+node index.js supplier_products
 ```

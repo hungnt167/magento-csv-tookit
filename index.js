@@ -24,13 +24,17 @@ const ProductType = {
 let regURL = new RegExp(/[^0-9a-z]+/ig);
 let skuDict = {};
 // category
-let rawData = fs.readFileSync('src/category.json');
-const categoryJson = JSON.parse(rawData);
+let categoryRawData = fs.readFileSync('src/category.json');
+const categoryJson = JSON.parse(categoryRawData);
 const nonInventoryCats = [
     'Non stock Rental',
     'Non-Inventory',
     'Non Inventory'
 ];
+// supplier
+let regCost = new RegExp(/[$|,|(|)|-]+/ig);
+let supplierRawData = fs.readFileSync('src/supplier.json');
+const supplierJson = JSON.parse(supplierRawData);
 
 function findCategoryPath(path) {
     let categoryPaths = [];
@@ -88,8 +92,8 @@ function getProductSku(row, index, skuDictIndex) {
         sku = `${sku}-${index}`;
     }
 
-    sku = sku.replace('?','');
-    sku = sku.replace('\\','');
+    sku = sku.replace('?', '');
+    sku = sku.replace('\\', '');
 
     skuDict[skuDictIndex].push(sku);
     return sku;
@@ -117,14 +121,58 @@ function getProductName(row) {
 }
 
 const mapService = {
-    barcodes: (row, index,  source_code, skuDictIndex) => {
+    supplier_products: (row, index, source_code, skuDictIndex) => {
+        let sku = getProductSku(row, index, skuDictIndex);
+        let supplierName = row[' Supplier'];
+        if (!supplierName || !supplierName.length) {
+            return {
+                sku,
+                supplier_id: '',
+                product_supplier_sku: '',
+                cost: '',
+                low: '',
+                high: '',
+            }
+        }
+        let supplier_id = supplierJson[supplierName];
+        if (!supplier_id || !supplier_id.length) {
+            console.log(supplierName);
+            return {
+                sku,
+                supplier_id,
+                product_supplier_sku: '',
+                cost: '',
+                low: '',
+                high: '',
+            }
+        }
+        let product_supplier_sku = row[' Supplier Part Number'];
+        if (!product_supplier_sku || !product_supplier_sku.length) {
+            product_supplier_sku = sku;
+        }
+        let cost = row['cost'];
+        if (cost) {
+            cost = parseFloat(cost.replace(regCost, ""));
+        }
+        let low = row['Low'];
+        let high = row['High'];
+        return {
+            sku,
+            supplier_id,
+            product_supplier_sku,
+            cost,
+            low,
+            high,
+        }
+    },
+    barcodes: (row, index, source_code, skuDictIndex) => {
         let SKU = getProductSku(row, index, skuDictIndex);
         let BARCODE = row[' Part Number'];
         let QTY = 1;
         let SUPPLIER = '';
         let PURCHASE_TIME = '';
         return {
-            SKU,BARCODE,QTY,SUPPLIER,PURCHASE_TIME
+            SKU, BARCODE, QTY, SUPPLIER, PURCHASE_TIME
         }
     },
     stock_sources: (row, index, source_code, skuDictIndex) => {
@@ -219,9 +267,9 @@ const mapService = {
 
         let price = row['List'].replace(/\$|\(|\)|-|,/g, "") * 1;
         price = Math.abs(price);
-        let qty = row['In Stock'].replace(/,/g,'');
+        let qty = row['In Stock'].replace(/,/g, '');
         let brand = row[' Brand'];
-        let url_key  = `${name.replace(regURL, '-')}-${index}`.toLowerCase();
+        let url_key = `${name.replace(regURL, '-')}-${index}`.toLowerCase();
         let additional_attributes = `has_options=0,quantity_and_stock_status=In Stock,required_options=0,webpos_visible=Yes`;
 
         if (brand.length) {
@@ -246,38 +294,62 @@ const mapService = {
             special_price: '',
             special_price_from_date: '',
             special_price_to_date: '',
-            url_key, 
-            meta_title: '',meta_keywords: '',meta_description: '',created_at: '',updated_at: '',new_from_date: '',
-            new_to_date: '', display_product_options_in: 'Block after Info Column',map_price: '',msrp_price: '',
-            map_enabled: '',gift_message_available: '',custom_design: '',custom_design_from: '', custom_design_to: '',
-            custom_layout_update: '',page_layout: '',product_options_container: '', msrp_display_actual_price_type: 'Use config',
-            country_of_manufacture: '', additional_attributes,
+            url_key,
+            meta_title: '',
+            meta_keywords: '',
+            meta_description: '',
+            created_at: '',
+            updated_at: '',
+            new_from_date: '',
+            new_to_date: '',
+            display_product_options_in: 'Block after Info Column',
+            map_price: '',
+            msrp_price: '',
+            map_enabled: '',
+            gift_message_available: '',
+            custom_design: '',
+            custom_design_from: '',
+            custom_design_to: '',
+            custom_layout_update: '',
+            page_layout: '',
+            product_options_container: '',
+            msrp_display_actual_price_type: 'Use config',
+            country_of_manufacture: '',
+            additional_attributes,
             qty,
             out_of_stock_qty: 0,
-            use_config_min_qty:1,
-            is_qty_decimal:0,
-            allow_backorders:0,
-            use_config_backorders:1,
-            min_cart_qty:1,
-            use_config_min_sale_qty:0,
-            max_cart_qty:0,
-            use_config_max_sale_qty:1,
-            is_in_stock:1,
-            notify_on_stock_below:'',
-            use_config_notify_stock_qty:1,
-            manage_stock:0,
-            use_config_manage_stock:1,
-            use_config_qty_increments:1,//
-            qty_increments:0,
-            use_config_enable_qty_inc:1,
-            enable_qty_increments:0,
-            is_decimal_divided:0,
-            website_id:1,
-            deferred_stock_update:0,
-            use_config_deferred_stock_update:1,
-            related_skus:'',crosssell_skus:'',upsell_skus:'',hide_from_product_page:'',custom_options:'',
-            bundle_price_type:'',bundle_sku_type:'',bundle_price_view:'',bundle_weight_type:'',bundle_values:'',
-            associated_skus:''
+            use_config_min_qty: 1,
+            is_qty_decimal: 0,
+            allow_backorders: 0,
+            use_config_backorders: 1,
+            min_cart_qty: 1,
+            use_config_min_sale_qty: 0,
+            max_cart_qty: 0,
+            use_config_max_sale_qty: 1,
+            is_in_stock: 1,
+            notify_on_stock_below: '',
+            use_config_notify_stock_qty: 1,
+            manage_stock: 0,
+            use_config_manage_stock: 1,
+            use_config_qty_increments: 1,//
+            qty_increments: 0,
+            use_config_enable_qty_inc: 1,
+            enable_qty_increments: 0,
+            is_decimal_divided: 0,
+            website_id: 1,
+            deferred_stock_update: 0,
+            use_config_deferred_stock_update: 1,
+            related_skus: '',
+            crosssell_skus: '',
+            upsell_skus: '',
+            hide_from_product_page: '',
+            custom_options: '',
+            bundle_price_type: '',
+            bundle_sku_type: '',
+            bundle_price_view: '',
+            bundle_weight_type: '',
+            bundle_values: '',
+            associated_skus: ''
         }
     },
 };
@@ -291,7 +363,7 @@ fs.readdir(inputPath, function (err, items) {
             const jsonArray = await csvToObject().fromFile(fullPath);
 
             let rows = Object.values(jsonArray).map((row, index) => {
-               return mapService[type](row, index, source_code, fullPath)
+                return mapService[type](row, index, source_code, fullPath)
             });
 
             let csv = new ObjectsToCsv(rows);
